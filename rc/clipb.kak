@@ -100,6 +100,15 @@ define-command clipb-set -docstring 'set system clipboard from the " register' %
 
 define-command clipb-get -docstring 'get system clipboard into the " register' %{
 	evaluate-commands %sh{
+		current_time=$(date +%s)
+		last_time="${kak_opt_clipb_last_get_time:-0}"
+		time_diff=$((current_time - last_time))
+
+		if [ "$time_diff" -lt 1 ]; then
+			exit 0
+		fi
+
+		printf 'set-option global clipb_last_get_time %s\n' "$current_time"
 		[ "$kak_reg_dquote" != "$(eval "$kak_opt_clipb_get_command")" ] \
 		&& printf '%s' 'set-register dquote %sh{ eval "$kak_opt_clipb_get_command" }'
 	}
@@ -119,6 +128,7 @@ define-command clipb-disable -docstring 'disable clipb' %{
 # Values
 declare-option -docstring 'command to copy to clipboard'    str clipb_set_command 'clipb copy'
 declare-option -docstring 'command to paste from clipboard' str clipb_get_command 'clipb paste'
+declare-option -hidden str clipb_last_get_time '0'
 
 declare-option -docstring 'multiple selections copy to clipboard feature' bool clipb_multiple_selections 'false'
 
