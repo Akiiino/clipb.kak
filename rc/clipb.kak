@@ -35,51 +35,56 @@
 # Functions
 define-command clipb-detect -docstring 'detect clipboard command' %{
 	evaluate-commands %sh{
-		case $(uname -s | tr '[:upper:]' '[:lower:]') in
-			'cygwin')
-				 copy_command='tee /dev/clipboard 2>&-'
-				paste_command='cat /dev/clipboard'
-			;;
-			'darwin'*)
-				 copy_command='pbcopy'
-				paste_command='pbpaste'
-			;;
-			*)
-				if [ -n "$WAYLAND_DISPLAY" ]; then
-					if [ -x "$(command -v wl-copy)" ] && [ -x "$(command -v wl-paste)" ]; then
-						 copy_command='wl-copy'
-						paste_command='wl-paste --no-newline'
-					else
-						printf '%s\n%s' "echo -debug \"clipb.kak: can't interact with Wayland's clipboard\"" \
-						                "echo -debug \"please install 'wl-clipboard'\""
+		if [ -x "$(command -v kitten)" ]; then
+			 copy_command='kitten clipboard'
+			paste_command='kitten clipboard --get-clipboard'
+		else
+			case $(uname -s | tr '[:upper:]' '[:lower:]') in
+				'cygwin')
+					 copy_command='tee /dev/clipboard 2>&-'
+					paste_command='cat /dev/clipboard'
+				;;
+				'darwin'*)
+					 copy_command='pbcopy'
+					paste_command='pbpaste'
+				;;
+				*)
+					if [ -n "$WAYLAND_DISPLAY" ]; then
+						if [ -x "$(command -v wl-copy)" ] && [ -x "$(command -v wl-paste)" ]; then
+							 copy_command='wl-copy'
+							paste_command='wl-paste --no-newline'
+						else
+							printf '%s\n%s' "echo -debug \"clipb.kak: can't interact with Wayland's clipboard\"" \
+							                "echo -debug \"please install 'wl-clipboard'\""
 
-						exit 1
-					fi
-				elif [ -n "$DISPLAY" ]; then
-					if [ -x "$(command -v xclip)" ]; then
-						 copy_command='xclip -in  -selection clipboard'
-						paste_command='xclip -out -selection clipboard'
-					elif [ -x "$(command -v xsel)" ]; then
-						 copy_command='xsel --input  --clipboard'
-						paste_command='xsel --output --clipboard'
-					else
-						printf '%s\n%s' "echo -debug \"clipb.kak: can't interact with Xorg's clipboard\"" \
-						                "echo -debug \"please install 'xclip' or 'xsel'\""
+							exit 1
+						fi
+					elif [ -n "$DISPLAY" ]; then
+						if [ -x "$(command -v xclip)" ]; then
+							 copy_command='xclip -in  -selection clipboard'
+							paste_command='xclip -out -selection clipboard'
+						elif [ -x "$(command -v xsel)" ]; then
+							 copy_command='xsel --input  --clipboard'
+							paste_command='xsel --output --clipboard'
+						else
+							printf '%s\n%s' "echo -debug \"clipb.kak: can't interact with Xorg's clipboard\"" \
+							                "echo -debug \"please install 'xclip' or 'xsel'\""
 
-						exit 1
-					fi
-				else
-					if [ -x "$(command -v termux-clipboard-set)" ]; then
-						 copy_command='termux-clipboard-set'
-						paste_command='termux-clipboard-get'
+							exit 1
+						fi
 					else
-						printf '%s' "echo -debug \"clipb.kak: this system is not supported\""
+						if [ -x "$(command -v termux-clipboard-set)" ]; then
+							 copy_command='termux-clipboard-set'
+							paste_command='termux-clipboard-get'
+						else
+							printf '%s' "echo -debug \"clipb.kak: this system is not supported\""
 
-						exit 1
+							exit 1
+						fi
 					fi
-				fi
-			;;
-		esac
+				;;
+			esac
+		fi
 
 		printf '%s\n%s' "set-option global clipb_set_command '$copy_command'" \
 		                "set-option global clipb_get_command '$paste_command'"
