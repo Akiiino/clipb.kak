@@ -46,12 +46,12 @@ define-command clipb-detect -docstring 'detect clipboard command' %{
 			;;
 			*)
 				if [ -n "$WAYLAND_DISPLAY" ]; then
-					if [ -x "$(command -v wl-copy)" ] && [ -x "$(command -v wl-paste)" ]; then
-						 copy_command='wl-copy'
-						paste_command='wl-paste --no-newline'
+					if [ -x "$(command -v wl-copy)" ] && [ -x "$(command -v wl-paste)" ] && [ -x "$(command -v timeout)" ]; then
+						 copy_command='timeout 0.25 wl-copy'
+						paste_command='timeout 0.25 wl-paste --no-newline'
 					else
 						printf '%s\n%s' "echo -debug \"clipb.kak: can't interact with Wayland's clipboard\"" \
-						                "echo -debug \"please install 'wl-clipboard'\""
+						                "echo -debug \"please install 'wl-clipboard' and `timeout`\""
 
 						exit 1
 					fi
