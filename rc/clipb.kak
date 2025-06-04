@@ -86,6 +86,11 @@ define-command clipb-detect -docstring 'detect clipboard command' %{
 			esac
 		fi
 
+		if [ -x "$(command -v timeout)" ]; then
+			 copy_command="timeout 0.25 $copy_command"
+			paste_command="timeout 0.25 $paste_command"
+		fi
+
 		printf '%s\n%s' "set-option global clipb_set_command '$copy_command'" \
 		                "set-option global clipb_get_command '$paste_command'"
 	}
