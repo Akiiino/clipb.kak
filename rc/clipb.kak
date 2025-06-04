@@ -35,7 +35,7 @@
 # Functions
 define-command clipb-detect -docstring 'detect clipboard command' %{
 	evaluate-commands %sh{
-		if [ -x "$(command -v kitten)" ]; then
+		if false && [ -x "$(command -v kitten)" ]; then
 			 copy_command='kitten clipboard'
 			paste_command='kitten clipboard --get-clipboard'
 		else
@@ -86,17 +86,21 @@ define-command clipb-detect -docstring 'detect clipboard command' %{
 			esac
 		fi
 
-		if [ -x "$(command -v timeout)" ]; then
-			 copy_command="timeout 0.25 $copy_command"
-			paste_command="timeout 0.25 $paste_command"
-		fi
-
 		printf '%s\n%s' "set-option global clipb_set_command '$copy_command'" \
 		                "set-option global clipb_get_command '$paste_command'"
 	}
 }
 
 define-command clipb-set -docstring 'set system clipboard from the " register' %{
+	declare-option -hidden str clipb_saved_disabled_hooks %opt{disabled_hooks}
+	evaluate-commands %sh{
+	    if [ -z "$kak_opt_disabled_hooks" ]; then
+	        echo "set-option global disabled_hooks 'clipb'"
+	    else
+	        echo "set-option global disabled_hooks '($kak_opt_disabled_hooks|clipb)'"
+	    fi
+	}
+
 	nop %sh{
 		if [ "$kak_opt_clipb_multiple_selections" = 'true' ]; then
 			clipboard="$kak_reg_dquote"
@@ -106,13 +110,13 @@ define-command clipb-set -docstring 'set system clipboard from the " register' %
 
 		printf '%s' "$clipboard" | eval "$kak_opt_clipb_set_command" >/dev/null 2>&1 &
 	}
+
+	set-option global disabled_hooks %opt{clipb_saved_disabled_hooks}
 }
 
 define-command clipb-get -docstring 'get system clipboard into the " register' %{
-	evaluate-commands %sh{
-    		clipboard=$(eval "$kak_opt_clipb_get_command")
-		[ "$kak_reg_dquote" != "$clipboard" ] \
-		&& printf 'set-register dquote %s' "$clipboard"
+	evaluate-commands -no-hooks %sh{
+		printf '%s' 'set-register dquote %sh{ eval "$kak_opt_clipb_get_command" }'
 	}
 }
 
