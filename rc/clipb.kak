@@ -110,8 +110,9 @@ define-command clipb-set -docstring 'set system clipboard from the " register' %
 
 define-command clipb-get -docstring 'get system clipboard into the " register' %{
 	evaluate-commands %sh{
-		[ "$kak_reg_dquote" != "$(eval "$kak_opt_clipb_get_command")" ] \
-		&& printf '%s' 'set-register dquote %sh{ eval "$kak_opt_clipb_get_command" }'
+    		clipboard=$(eval "$kak_opt_clipb_get_command")
+		[ "$kak_reg_dquote" != "$clipboard" ] \
+		&& printf 'set-register dquote %s' "$clipboard"
 	}
 }
 
