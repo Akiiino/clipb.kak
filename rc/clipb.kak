@@ -35,56 +35,51 @@
 # Functions
 define-command clipb-detect -docstring 'detect clipboard command' %{
 	evaluate-commands %sh{
-		if false && [ -x "$(command -v kitten)" ]; then
-			 copy_command='kitten clipboard'
-			paste_command='kitten clipboard --get-clipboard'
-		else
-			case $(uname -s | tr '[:upper:]' '[:lower:]') in
-				'cygwin')
-					 copy_command='tee /dev/clipboard 2>&-'
-					paste_command='cat /dev/clipboard'
-				;;
-				'darwin'*)
-					 copy_command='pbcopy'
-					paste_command='pbpaste'
-				;;
-				*)
-					if [ -n "$WAYLAND_DISPLAY" ]; then
-						if [ -x "$(command -v wl-copy)" ] && [ -x "$(command -v wl-paste)" ]; then
-							 copy_command='wl-copy'
-							paste_command='wl-paste --no-newline'
-						else
-							printf '%s\n%s' "echo -debug \"clipb.kak: can't interact with Wayland's clipboard\"" \
-							                "echo -debug \"please install 'wl-clipboard'\""
-
-							exit 1
-						fi
-					elif [ -n "$DISPLAY" ]; then
-						if [ -x "$(command -v xclip)" ]; then
-							 copy_command='xclip -in  -selection clipboard'
-							paste_command='xclip -out -selection clipboard'
-						elif [ -x "$(command -v xsel)" ]; then
-							 copy_command='xsel --input  --clipboard'
-							paste_command='xsel --output --clipboard'
-						else
-							printf '%s\n%s' "echo -debug \"clipb.kak: can't interact with Xorg's clipboard\"" \
-							                "echo -debug \"please install 'xclip' or 'xsel'\""
-
-							exit 1
-						fi
+		case $(uname -s | tr '[:upper:]' '[:lower:]') in
+			'cygwin')
+				 copy_command='tee /dev/clipboard 2>&-'
+				paste_command='cat /dev/clipboard'
+			;;
+			'darwin'*)
+				 copy_command='pbcopy'
+				paste_command='pbpaste'
+			;;
+			*)
+				if [ -n "$WAYLAND_DISPLAY" ]; then
+					if [ -x "$(command -v wl-copy)" ] && [ -x "$(command -v wl-paste)" ]; then
+						 copy_command='wl-copy'
+						paste_command='wl-paste --no-newline'
 					else
-						if [ -x "$(command -v termux-clipboard-set)" ]; then
-							 copy_command='termux-clipboard-set'
-							paste_command='termux-clipboard-get'
-						else
-							printf '%s' "echo -debug \"clipb.kak: this system is not supported\""
+						printf '%s\n%s' "echo -debug \"clipb.kak: can't interact with Wayland's clipboard\"" \
+						                "echo -debug \"please install 'wl-clipboard'\""
 
-							exit 1
-						fi
+						exit 1
 					fi
-				;;
-			esac
-		fi
+				elif [ -n "$DISPLAY" ]; then
+					if [ -x "$(command -v xclip)" ]; then
+						 copy_command='xclip -in  -selection clipboard'
+						paste_command='xclip -out -selection clipboard'
+					elif [ -x "$(command -v xsel)" ]; then
+						 copy_command='xsel --input  --clipboard'
+						paste_command='xsel --output --clipboard'
+					else
+						printf '%s\n%s' "echo -debug \"clipb.kak: can't interact with Xorg's clipboard\"" \
+						                "echo -debug \"please install 'xclip' or 'xsel'\""
+
+						exit 1
+					fi
+				else
+					if [ -x "$(command -v termux-clipboard-set)" ]; then
+						 copy_command='termux-clipboard-set'
+						paste_command='termux-clipboard-get'
+					else
+						printf '%s' "echo -debug \"clipb.kak: this system is not supported\""
+
+						exit 1
+					fi
+				fi
+			;;
+		esac
 
 		printf '%s\n%s' "set-option global clipb_set_command '$copy_command'" \
 		                "set-option global clipb_get_command '$paste_command'"
@@ -92,6 +87,53 @@ define-command clipb-detect -docstring 'detect clipboard command' %{
 }
 
 define-command clipb-set -docstring 'set system clipboard from the " register' %{
+	clipb-disable
+	echo -debug "disabled in set"
+	try %{
+		nop %sh{
+			if [ "$kak_opt_clipb_multiple_selections" = 'true' ]; then
+				clipboard="$kak_reg_dquote"
+			else
+				clipboard="$kak_main_reg_dquote"
+			fi
+
+			printf '%s' "$clipboard" | eval "$kak_opt_clipb_set_command" >/dev/null 2>&1 &
+		}
+		echo -debug "set"
+	}
+	clipb-enable
+	echo -debug "undisabled in set"
+}
+
+define-command clipb-get -docstring 'get system clipboard into the " register' %{
+	clipb-disable
+	echo -debug "disabled in get"
+	try %{
+		set-register dquote %sh{ eval "$kak_opt_clipb_get_command" }
+		echo -debug "got"
+	}
+	clipb-enable
+	echo -debug "undisabled in get"
+
+}
+
+define-command clipb-enable -docstring 'enable clipb' %{
+	echo -debug "enabled"
+	hook -group 'clipb' global WinCreate        .* %{ echo -debug "WinCreate firing"
+	clipb-get }
+	hook -group 'clipb' global FocusIn          .* %{ echo -debug "FocusIn firing"
+	clipb-get }
+	hook -group 'clipb' global RegisterModified \" %{ echo -debug "RegisterModified firing"
+	clipb-set }
+}
+
+define-command clipb-disable -docstring 'disable clipb' %{
+	echo -debug "disabled"
+	remove-hooks global 'clipb'
+}
+
+define-command clipb-pause -hidden -docstring 'temporarily disable clipb' %{
+	echo -debug "paused"
 	declare-option -hidden str clipb_saved_disabled_hooks %opt{disabled_hooks}
 	evaluate-commands %sh{
 	    if [ -z "$kak_opt_disabled_hooks" ]; then
@@ -100,34 +142,11 @@ define-command clipb-set -docstring 'set system clipboard from the " register' %
 	        echo "set-option global disabled_hooks '($kak_opt_disabled_hooks|clipb)'"
 	    fi
 	}
+}
 
-	nop %sh{
-		if [ "$kak_opt_clipb_multiple_selections" = 'true' ]; then
-			clipboard="$kak_reg_dquote"
-		else
-			clipboard="$kak_main_reg_dquote"
-		fi
-
-		printf '%s' "$clipboard" | eval "$kak_opt_clipb_set_command" >/dev/null 2>&1 &
-	}
-
+define-command clipb-resume -hidden -docstring 'reenable temporarily disabled clipb' %{
+	echo -debug "unpaused"
 	set-option global disabled_hooks %opt{clipb_saved_disabled_hooks}
-}
-
-define-command clipb-get -docstring 'get system clipboard into the " register' %{
-	evaluate-commands -no-hooks %sh{
-		printf '%s' 'set-register dquote %sh{ eval "$kak_opt_clipb_get_command" }'
-	}
-}
-
-define-command clipb-enable -docstring 'enable clipb' %{
-	hook -group 'clipb' global WinCreate        .* %{ clipb-get }
-	hook -group 'clipb' global FocusIn          .* %{ clipb-get }
-	hook -group 'clipb' global RegisterModified \" %{ clipb-set }
-}
-
-define-command clipb-disable -docstring 'disable clipb' %{
-	remove-hooks global 'clipb'
 }
 
 
